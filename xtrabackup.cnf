@@ -1,0 +1,29 @@
+[xtrabackup]
+defaults-file = /etc/my.cnf
+user = bkpuser
+password = 123.com
+host = 127.0.0.1
+port = 3306
+backup
+target-dir = /data/xtrabackup
+compress
+compress-threads = 2
+compress-chunk-size = 64K
+parallel = 4
+encrypt = AES256
+encrypt-threads = 2
+encrypt-key="/Ypbi69zhme8dsifdc6FEFHb+XnhtKA7J"
+rsync
+history
+#slave-info
+#safe-slave-backup
+binlog-info = ON
+
+[mail]
+#mail setting
+title = 数据库备份
+mail_sender = xxxx@163.com
+mail_receiver = xxxx@163.com,xxxx@163.com
+mail_host = smtp.hnair.com
+mail_user = xxxx
+mail_pass = xxxx
