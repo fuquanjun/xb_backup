@@ -3,6 +3,7 @@
 # python version python3.5+
 
 import os
+import sys
 import time
 import argparse
 import subprocess
@@ -149,4 +150,8 @@ def xtrabackup_instance():
 
 if __name__ == '__main__':
     parser_arguments = parser_args()
-    xtrabackup_instance()
+    try:
+        xtrabackup_instance()
+    except KeyboardInterrupt:
+        print('\n已终止备份程序...')
+        sys.exit(1)
