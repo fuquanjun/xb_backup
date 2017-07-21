@@ -25,30 +25,31 @@ vim /etc/xtrabackup.cnf
 2. 命令
 python3.6 xb_backup.py -f/etc/xtrabackup.cnf
 
+
 最后邮件收到的内容：
-[xtrabackup history]
-uuid: 05c03608-6d29-11e7-9cd9-067a70000eaf
-name: None
-tool_name: xtrabackup
-tool_command: --defaults-file=/etc/xtrabackup.cnf --target-dir=/data/xtrabackup/2017-07-20_16:54:15/data
-tool_version: 2.4.7
-ibbackup_version: 2.4.7
-server_version: 5.7.18-15-log
-start_time: 2017-07-20 16:54:15
-end_time: 2017-07-20 16:54:21
-lock_time: 0
-binlog_pos: filename 'binlog.000020', position '35637'
-innodb_from_lsn: 0
-innodb_to_lsn: 2778551
-partial: N
-incremental: N
-format: file
-compact: N
-compressed: Y
-encrypted: Y
+<br>[xtrabackup history]
+<br>uuid: 05c03608-6d29-11e7-9cd9-067a70000eaf
+<br>name: None
+<br>tool_name: xtrabackup
+<br>tool_command: --defaults-file=/etc/xtrabackup.cnf --target-dir=/data/xtrabackup/2017-07-20_16:54:15/data
+<br>tool_version: 2.4.7
+<br>ibbackup_version: 2.4.7
+<br>server_version: 5.7.18-15-log
+<br>start_time: 2017-07-20 16:54:15
+<br>end_time: 2017-07-20 16:54:21
+<br>lock_time: 0
+<br>binlog_pos: filename 'binlog.000020', position '35637'
+<br>innodb_from_lsn: 0
+<br>innodb_to_lsn: 2778551
+<br>partial: N
+<br>incremental: N
+<br>format: file
+<br>compact: N
+<br>compressed: Y
+<br>encrypted: Y
 
-[backup space]
-free size:   457.03GB
-total size:  499.75GB
+<br>[backup space]
+<br>free size:   457.03GB
+<br>total size:  499.75GB
 
-xtrabackup size:    42.68 MB
+<br>xtrabackup size:    42.68 MB
