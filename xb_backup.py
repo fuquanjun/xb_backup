@@ -3,7 +3,6 @@
 # python version python3.5+
 
 import os
-import sys
 import time
 import argparse
 import subprocess
@@ -64,20 +63,23 @@ def parser_args():
 
 # 获取备份写入到percona_schema的信息
 def get_xb_result():
-    conn = mdb.connect(**parser_arguments['mysql_config'])
-    cur = conn.cursor(dictionary=True)
-    cur.execute("select * from percona_schema.xtrabackup_history limit 1")
-    for key in cur.fetchall():
-        result = []
-        for i in key.items():
-            first = str(i[0])
-            second = str(i[1])
-            result.append(first + ': ' + second)
-        result_write('[xtrabackup history]')
-        result_write('\n')
-        result_write('\n'.join(result))
-    cur.close()
-    conn.close()
+    try:
+        conn = mdb.connect(**parser_arguments['mysql_config'])
+        cur = conn.cursor(dictionary=True)
+        cur.execute("select * from percona_schema.xtrabackup_history limit 1")
+        for key in cur.fetchall():
+            result = []
+            for i in key.items():
+                first = str(i[0])
+                second = str(i[1])
+                result.append(first + ': ' + second)
+            result_write('[xtrabackup history]')
+            result_write('\n')
+            result_write('\n'.join(result))
+        cur.close()
+        conn.close()
+    except conn.ProgrammingError as err:
+        result_write(err)
 
 # 获取目录大小
 def get_dir_size(dir):
@@ -109,6 +111,7 @@ def mail_send(file):
     msg['Subject'] = mail_config['title']
     msg['From'] = mail_config['mail_sender']
     msg['To'] = ";".join(list(mail_config['mail_receiver'].split(',')))
+    mail_receiver = list(mail_config['mail_receiver'].split(','))
 
     try:
         server = smtplib.SMTP()
@@ -117,7 +120,7 @@ def mail_send(file):
         # 开启tls加密支持
         server.starttls()
         server.login(mail_config['mail_user'], mail_config['mail_pass'])
-        server.sendmail(mail_config['mail_sender'], mail_config['mail_receiver'], msg.as_string())
+        server.sendmail(mail_config['mail_sender'], mail_receiver, msg.as_string())
         server.close()
     except Exception as err:
         print(err)
@@ -150,8 +153,4 @@ def xtrabackup_instance():
 
 if __name__ == '__main__':
     parser_arguments = parser_args()
-    try:
-        xtrabackup_instance()
-    except KeyboardInterrupt:
-        print('\n已终止备份程序...')
-        sys.exit(1)
+    xtrabackup_instance()
