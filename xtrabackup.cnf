@@ -1,26 +1,35 @@
 [xtrabackup]
+# xtrabackup必须为第一个参数
+# defaults-file必须为第二个参数
+# 其他参数随意，可增可删
+xtrabackup = /usr/bin/xtrabackup
 defaults-file = /etc/my.cnf
+
+# 备份用户
 user = bkpuser
-password = 123.com
+password = Shqhrx3FuKb6
 host = 127.0.0.1
 port = 3306
+
+# xtrabackup --help参数
 backup
-target-dir = /data/xtrabackup
+target-dir = /backup/xtrabackup/jbh
 compress
 compress-threads = 2
 compress-chunk-size = 64K
 parallel = 4
 encrypt = AES256
 encrypt-threads = 2
-encrypt-key="/Ypbi69zhme8dsifdc6FEFHb+XnhtKA7J"
+encrypt-key = "/Ypbi69zhme8KifZc6DEFHb+XnhtKA7J"
 rsync
+# history 为必加参数
 history
 #slave-info
 #safe-slave-backup
 binlog-info = ON
 
 [mail]
-#mail setting
+# mail setting
 title = 数据库备份
 mail_sender = xxxx@163.com
 mail_receiver = xxxx@163.com,xxxx@163.com
