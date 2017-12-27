@@ -13,7 +13,7 @@ port = 3306
 
 # xtrabackup --help参数
 backup
-target-dir = /backup/xtrabackup/jbh
+target-dir = /backup/xtrabackup
 compress
 compress-threads = 2
 compress-chunk-size = 64K
