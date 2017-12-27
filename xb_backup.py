@@ -1,6 +1,5 @@
-# !/usr/bin/env
-# coding:utf8
-# python version python3.5+
+# -*- coding:utf-8 -*-
+# edit by fuzongfei
 
 import os
 import time
@@ -8,42 +7,46 @@ import argparse
 import subprocess
 import configparser
 import smtplib
+import socket
 from collections import OrderedDict
 import mysql.connector as mdb
 from email.mime.text import MIMEText
 
-def parser_args():
+hostname = socket.gethostname()
+current_time = time.strftime("%Y-%m-%d_%H:%M:%S", time.localtime())
+
+
+def get_args():
     parser = argparse.ArgumentParser(description='This a backup help document.')
-    parser.add_argument('-f', '--xtrabackup_file', type=str, help='xtrabackup read defaults file')
+    parser.add_argument('-f', '--file', type=str, help='xtrabackup read config file')
     args = parser.parse_args()
 
-    # 读取配置文件
     config = configparser.ConfigParser(allow_no_value=True)
-    config.read(args.xtrabackup_file)
+    config.read(args.file)
 
-    parser_arguments = {}
-
-    # 获取邮箱配置
-    parser_arguments['mail_config'] = dict(config.items('mail'))
+    # 读取邮箱配置
+    args = {'mail': dict(config.items('mail'))}
 
     # 此处使用collections.OrderedDict有序字典
     # 组合成xtrabackup命令
-    current_time = time.strftime("%Y-%m-%d_%H:%M:%S", time.localtime())
     xb_config = OrderedDict(config.items('xtrabackup'))
     result = []
-    for k,v in xb_config.items():
+    for k, v in xb_config.items():
         if v:
             if 'target-dir' == k:
                 v = '/'.join((v, current_time, 'data'))
                 if not os.path.exists(v):
                     os.makedirs(v)
-            result.append('--' + '='.join((k,v)))
+            if 'xtrabackup' == k:
+                result.append(v)
+            else:
+                result.append('--' + '='.join((k, v)))
         else:
             result.append('--' + k)
-    parser_arguments['xb_cmd'] = ' '.join(result)
+    args['xb_cmd'] = ' '.join(result)
 
-    # 获取xtrabackup里面的数据库账号
-    parser_arguments['mysql_config'] = {
+    # 读取数据库账号配置
+    args['mysql'] = {
         'user': xb_config['user'],
         'host': xb_config['host'],
         'password': xb_config['password'],
@@ -52,63 +55,28 @@ def parser_args():
     }
 
     # 获取并生成xtrabackup的日志文件
-    # xb_log_file：记录备份时，xtrabackup输出的信息，失败时，读取并发送此文件内容
-    # xb_status_file：自定义生产的状态信息，用于备份成功时，读取并发送此文件内容
-    xb_data_dir = '/'.join((xb_config['target-dir'], current_time))
-    parser_arguments['xb_log_file'] = '/'.join((xb_data_dir, 'xb_output.log'))
-    parser_arguments['xb_status_file'] = '/'.join((xb_data_dir, 'xb_status.log'))
-    parser_arguments['xb_data_dir'] = xb_data_dir
+    # xb_log：记录备份时，xtrabackup输出的信息，失败时，读取并发送此文件内容
+    # xb_status_log：自定义生产的状态信息，用于备份成功时，读取并发送此文件内容
+    xb_datadir = '/'.join((xb_config['target-dir'], current_time))
+    args['xb_log'] = '/'.join((xb_datadir, 'xb_output.log'))
+    args['xb_status_log'] = '/'.join((xb_datadir, 'xb_status.log'))
+    args['xb_datadir'] = xb_datadir
 
-    return parser_arguments
+    return args
 
-# 获取备份写入到percona_schema的信息
-def get_xb_result():
-    try:
-        conn = mdb.connect(**parser_arguments['mysql_config'])
-        cur = conn.cursor(dictionary=True)
-        cur.execute("select * from percona_schema.xtrabackup_history limit 1")
-        for key in cur.fetchall():
-            result = []
-            for i in key.items():
-                first = str(i[0])
-                second = str(i[1])
-                result.append(first + ': ' + second)
-            result_write('[xtrabackup history]')
-            result_write('\n')
-            result_write('\n'.join(result))
-        cur.close()
-        conn.close()
-    except conn.ProgrammingError as err:
-        result_write(err)
 
-# 获取目录大小
-def get_dir_size(dir):
-    size = 0
-    for root, dirs, files in os.walk(dir):
-        size += sum([os.path.getsize(os.path.join(root, name))
-                     for name in files])
-    return  ''.join(('xtrabackup size', ':\t', '%.2f MB' % float(size/1024/1024)))
-
-# 获取分区大小
-def get_partition_size(partition):
-  vfs=os.statvfs(partition)
-  free = (vfs.f_bavail * vfs.f_bsize)/(1024*1024*1024)
-  total = (vfs.f_blocks * vfs.f_bsize)/(1024*1024*1024)
-  free_size = '{0} {1:.2f}GB\n'.format('free size:\t',free)
-  total_size = '{0} {1:.2f}GB\n'.format('total size:\t',total)
-  return ''.join((free_size, total_size))
-
-# 记录备份日志信息, 留着备份
-def result_write(content):
-    with open(parser_arguments['xb_status_file'], 'a') as f:
+def writelog(file, content):
+    with open(file, 'a') as f:
         f.write(content)
+        f.write('\n')
+
 
 # 邮件
-def mail_send(file):
-    mail_config = parser_arguments['mail_config']
+def mail_send(parameter, file):
+    mail_config = parameter['mail']
     content = ''.join(open(file).readlines())
     msg = MIMEText(content, _subtype='plain', _charset='gb2312')
-    msg['Subject'] = mail_config['title']
+    msg['Subject'] = '{} from {}'.format(mail_config['title'], hostname)
     msg['From'] = mail_config['mail_sender']
     msg['To'] = ";".join(list(mail_config['mail_receiver'].split(',')))
     mail_receiver = list(mail_config['mail_receiver'].split(','))
@@ -125,32 +93,87 @@ def mail_send(file):
     except Exception as err:
         print(err)
 
-# xtrabackup
-def xtrabackup_instance():
-    xb_log_file = parser_arguments['xb_log_file']
 
-    cmd = (' ').join(('/usr/bin/xtrabackup', parser_arguments['xb_cmd']))
-    status, output = subprocess.getstatusoutput(cmd)
+class GetMySQLInfo(object):
+    def __init__(self, parameter, query):
+        self.parameter = parameter
+        self.query = query
+
+    @property
+    def runner(self):
+        try:
+            conn = mdb.connect(**self.parameter['mysql'])
+        except conn.ProgrammingError as err:
+            writelog(self.parameter['xb_status_log'], err)
+        else:
+            cur = conn.cursor(dictionary=True)
+            cur.execute(self.query)
+            return cur.fetchall()
+            cur.close()
+            conn.close()
+
+
+class GetDiskUsageInfo(object):
+    """
+    获取备份文件大小、获取分区已使用空间、总空间
+    return：list
+    """
+
+    def __init__(self, path):
+        self.path = path
+
+    FMT_INFO = '{:} --> {:.2f}GB'
+
+    @property
+    def bk_size(self):
+        size = 0
+        for root, dirs, files in os.walk(self.path):
+            size += sum([os.path.getsize(os.path.join(root, name))
+                         for name in files])
+        return [''.join(self.FMT_INFO.format('backup_file_size', float(size / 1024 / 1024 / 1024)))]
+
+    @property
+    def partition_size(self):
+        vfs = os.statvfs(self.path)
+        free = (vfs.f_bavail * vfs.f_bsize) / (1024 * 1024 * 1024)
+        total = (vfs.f_blocks * vfs.f_bsize) / (1024 * 1024 * 1024)
+        partition_free_size = self.FMT_INFO.format('partition_free_size', free)
+        partition_total_size = self.FMT_INFO.format('partition_total_size', total)
+        return [partition_free_size, partition_total_size]
+
+    @property
+    def runner(self):
+        return self.bk_size + self.partition_size
+
+
+# xtrabackup
+def xtrabackup(parameter):
+    status, output = subprocess.getstatusoutput(parameter['xb_cmd'])
+    writelog(parameter['xb_log'], output)
 
     # xtrabackup退出状态为0，表示成功。非零，为失败
+    result = []
     if status == 0:
-        # 如果备份成功，就发送xb_status_file日志
-        with open(r'{0}'.format(xb_log_file), 'a') as f:
-            f.write(output)
+        query = "select * from xtrabackup_history order by start_time desc limit 1"
+        FMT_RESULT = '{} --> {}'
 
-        get_xb_result()
-        xb_backup_size = get_dir_size(parser_arguments['xb_data_dir'])
-        xb_partition_size = get_partition_size(parser_arguments['xb_data_dir'])
-        result_write('\n'*2)
-        result_write('\n'.join(('[backup space]', xb_partition_size, xb_backup_size)))
-        mail_send(parser_arguments['xb_status_file'])
+        for key in GetMySQLInfo(parameter, query).runner:
+            for k, v in key.items():
+                result.append(FMT_RESULT.format(k, v))
+        get_disk_usage_info = GetDiskUsageInfo(parameter['xb_datadir']).runner
+        writelog(parameter['xb_status_log'], '[xtrabackup info]')
+        writelog(parameter['xb_status_log'], '\n'.join((result + get_disk_usage_info)))
+    return status
+
+
+def xb_run():
+    argument = get_args()
+    xb_status = xtrabackup(argument)
+    if xb_status == 0:
+        mail_send(argument, argument['xb_status_log'])
     else:
-        # 如果备份失败，就发送xb_log_file日志
-        with open(r'{0}'.format(xb_log_file), 'a') as f:
-            f.write(output)
-        mail_send(xb_log_file)
+        mail_send(argument, argument['xb_log'])
 
 
 if __name__ == '__main__':
-    parser_arguments = parser_args()
-    xtrabackup_instance()
+    xb_run()
