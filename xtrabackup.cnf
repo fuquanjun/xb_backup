@@ -1,38 +1,49 @@
-[xtrabackup]
-# xtrabackup必须为第一个参数
-# defaults-file必须为第二个参数
-# 其他参数随意，可增可删
-xtrabackup = /usr/bin/xtrabackup
-defaults-file = /etc/my.cnf
-
-# 备份用户
+[mysql]
+# mysql backup user
+mysqladmin = /usr/local/mysql/bin/mysqladmin
 user = bkpuser
-password = Shqhrx3FuKb6
+password = 123.com
 host = 127.0.0.1
 port = 3306
 
-# xtrabackup --help参数
-backup
-target-dir = /backup/xtrabackup
-compress
-compress-threads = 2
-compress-chunk-size = 64K
-parallel = 4
+[xtrabackup]
+backup_tool = /usr/bin/xtrabackup
+defaults-file = /etc/my.cnf
+backupdir = /backup/xtrabackup/jbh
+# master backup, set --binlog-info=ON
+# slave backup, set --slave-info
+xtra_options = --no-version-check --rsync --binlog-info=ON
+
+[compress]
+# Optional
+# Enable only if you want to use compression.
+compress = quicklz
+compress_chunk_size = 64k
+compress_threads = 4
+
+[encrypt]
+# Optional
+# Enable only if you want to create encrypted backups
 encrypt = AES256
-encrypt-threads = 2
-encrypt-key = "/Ypbi69zhme8KifZc6DEFHb+XnhtKA7J"
-rsync
-# history 为必加参数
-history
-#slave-info
-#safe-slave-backup
-binlog-info = ON
+encrypt_key = 'VVTBwgM4UhwkTTV98fphj+D1zyWoA89K'
+encrypt_threads = 4
+encrypt_chunk_size = 64k
+
+[remote]
+# Optional
+# Enable only if you want to copy backup file to remote server
+remote_host = 10.72.63.199
+remote_ssh_user = root
+remote_ssh_pass = 123.com
+remote_dir = /backup/tmp_backup
+# whether to delete local backup files, Yes: delete, No: do not delete
+remove_local_backup = Yes
 
 [mail]
 # mail setting
-title = 数据库备份
-mail_sender = xxxx@163.com
-mail_receiver = xxxx@163.com,xxxx@163.com
-mail_host = smtp.hnair.com
-mail_user = xxxx
-mail_pass = xxxx
+title = [jbh backup]
+mail_sender = lisi@163.com
+mail_receiver = zhangsan@163.com,
+mail_host = smtp.163.com
+mail_user = lisi
+mail_pass = 123.com
