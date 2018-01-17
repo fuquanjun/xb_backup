@@ -4,41 +4,62 @@
 import argparse
 import configparser
 import logging
-import os
 import shutil
 import smtplib
 import socket
 import subprocess
 import sys
+import os
+import jinja2
 import time
 from email.mime.text import MIMEText
 from os.path import isfile
+from tempfile import TemporaryFile
 
-# set logger
+# Set logger
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT, datefmt=DATE_FORMAT)
 logger = logging.getLogger(__name__)
 
-# get hostname
-hostname = socket.gethostname()
-# get time
-current_time = time.strftime("%Y-%m-%d_%H:%M:%S", time.localtime())
-# set statistics
-backup_statistics = [{'备份主机': hostname}]
+# Get HOSTNAME
+HOSTNAME = socket.gethostname()
+
+# Get os time
+CURRENT_TIME = time.strftime("%Y-%m-%d_%H:%M:%S", time.localtime())
+
+# Set statistics info
+STATISTICS_INFO = {'备份主机': HOSTNAME}
+
+# Set render html template
+module_path = os.path.dirname(__file__)
+html_template = os.path.join(module_path + '/table_template.html')
 
 
-# get input
+def render_to_template(html_path, html_context):
+    path, filename = os.path.split(html_path)
+    env = jinja2.Environment(
+        loader=jinja2.FileSystemLoader(path)
+    )
+    if isinstance(html_context, dict):
+        return env.get_template(filename).render({'data': html_context})
+    else:
+        return env.get_template(filename).render({'err_msg': html_context})
+
+
 def get_arguments():
+    """
+    Get user input 
+    """
     parser = argparse.ArgumentParser(description='This a backup help document.')
     parser.add_argument('-f', '--file', type=str, help='xtrabackup read config file')
     args = parser.parse_args()
     return args.file
 
 
-def check_file_content_valid(file):
+def check_config_valid(file):
     """
-    # Check config file content valid
+    Check config file content valid
     """
     config = configparser.ConfigParser()
     try:
@@ -55,7 +76,6 @@ def check_file_content_valid(file):
 
     keep_items = ['mysql', 'xtrabackup', 'compress', 'encrypt', 'mail']
     keep_keys = [
-        'mysqladmin',
         'user',
         'host',
         'password',
@@ -86,7 +106,7 @@ def check_file_content_valid(file):
 
 class General(object):
     """
-    # Process the config file and Generate variables
+    Process the config file and Generate variables
     """
 
     def __init__(self, file):
@@ -95,7 +115,6 @@ class General(object):
             config.read(file)
 
             Mysql = config['mysql']
-            self.mysqladmin = Mysql['mysqladmin']
             self.user = Mysql['user']
             self.host = Mysql['host']
             self.password = Mysql['password']
@@ -105,7 +124,7 @@ class General(object):
             self.backup_tool = Xtrabackup['backup_tool']
             self.defaults_file = Xtrabackup['defaults-file']
             self.backupdir = Xtrabackup['backupdir']
-            self.fmt_backupdir = '/'.join((Xtrabackup['backupdir'], current_time))
+            self.fmt_backupdir = '/'.join((Xtrabackup['backupdir'], CURRENT_TIME))
             if 'xtra_options' in Xtrabackup:
                 self.xtra_options = Xtrabackup['xtra_options']
 
@@ -148,54 +167,30 @@ class General(object):
             self.mail_pass = Mail['mail_pass']
 
 
-class CheckEnv(General):
+class CheckEnvironment(General):
     """
-    # Check environment
+    Check if the file and command exists
     """
 
     def __init__(self, file):
         self.file = file
         General.__init__(self, self.file)
+        self.FILE_LIST = [self.backup_tool, self.defaults_file, '/usr/bin/sshpass', self.backupdir]
 
-    def check_mysql_backuptool(self):
-        if not os.path.exists(self.backup_tool):
-            logger.error(f'FAILED: {self.backup_tool} not found.')
-            sys.exit(1)
-        else:
-            logger.info(f'OK: backup tool is {self.backup_tool}')
-
-    def check_sshpass(self):
-        if not os.path.exists('/usr/bin/sshpass'):
-            logger.error(f'FAILED: /usr/bin/sshpass not found.')
-            sys.exit(1)
-
-    def check_mysql_status(self):
-        statusargs = f"{self.mysqladmin} --user={self.user} --password={self.password} --host={self.host} status"
-        status, output = subprocess.getstatusoutput(statusargs)
-        if status == 0:
-            logger.info('OK: MySQL Server is up and running')
-        else:
-            logger.error('FAILED: MySQL Server is not up')
-            sys.exit(1)
-
-    def check_mysql_config_file(self):
-        if not os.path.exists(self.defaults_file):
-            logger.error(f'FAILED: {self.defaults_file} not found.')
-            sys.exit(1)
-        else:
-            logger.info(f'OK: default file is {self.defaults_file}')
-
-    def check_all_env(self):
-        self.check_mysql_backuptool()
-        self.check_sshpass()
-        self.check_mysql_config_file()
-        self.check_mysql_status()
+    def check_file_exist(self):
+        for file in self.FILE_LIST:
+            if not os.path.exists(file):
+                logger.error(f'FAILED: {file} not found.')
+                logger.error('FAILED: 程序退出.')
+                sys.exit(1)
+            else:
+                logger.info(f'OK: the file {file} exist.')
         return True
 
 
-class ToolsKit(General):
+class ToolsUtils(General):
     """
-    # define some tools
+    Define some tools
     """
 
     def __init__(self, file):
@@ -204,10 +199,8 @@ class ToolsKit(General):
 
         self.xb_output_log = '/'.join((self.fmt_backupdir, 'xb_output.log'))
 
-        backup_statistics.append({
-            '备份目录': self.fmt_backupdir,
-            '备份工具': self.backup_tool,
-        })
+        STATISTICS_INFO['备份目录'] = self.fmt_backupdir
+        STATISTICS_INFO['备份工具'] = self.backup_tool
 
     def create_backup_dir(self):
         """ create backup directory """
@@ -215,24 +208,17 @@ class ToolsKit(General):
             os.makedirs(self.fmt_backupdir)
             logger.info(f'OK: the backup dir not exisit, create {self.fmt_backupdir}')
 
-    def log_backup_output(self, content):
-        """ log xtrabackup produce output to file """
-        with open(self.xb_output_log, 'a') as f:
-            f.write(content)
-            f.write('\n')
-
     FMT_INFO = '{:.2f}GB'
 
-    @property
     def get_backup_file_size(self):
         size = 0
         for root, dirs, files in os.walk(self.fmt_backupdir):
             size += sum([os.path.getsize(os.path.join(root, name))
                          for name in files])
         logger.info(f'OK: get backup file size')
-        return {'文件大小': self.FMT_INFO.format(float(size / 1024 / 1024 / 1024))}
+        STATISTICS_INFO['备份大小'] = self.FMT_INFO.format(float(size / 1024 / 1024 / 1024))
+        return True
 
-    @property
     def get_partition_size(self):
         vfs = os.statvfs(self.fmt_backupdir)
         free = (vfs.f_bavail * vfs.f_bsize) / (1024 * 1024 * 1024)
@@ -240,7 +226,9 @@ class ToolsKit(General):
         partition_free_size = self.FMT_INFO.format(free)
         partition_total_size = self.FMT_INFO.format(total)
         logger.info(f'OK: get disk partition usage')
-        return {'可用空间': partition_free_size, '总空间': partition_total_size}
+        STATISTICS_INFO['可用空间'] = partition_free_size
+        STATISTICS_INFO['总空间'] = partition_total_size
+        return True
 
     def remove_backup_file(self):
         """ if remove_local_backup = Yes, delete local backup files """
@@ -249,29 +237,19 @@ class ToolsKit(General):
                 and hasattr(self, 'remove_local_backup'):
             if self.remove_local_backup == 'Yes':
                 shutil.rmtree(self.fmt_backupdir)
-                backup_statistics.append({'本地留存': 'No'})
+                STATISTICS_INFO['本地留存'] = 'No'
                 logger.info(f"OK: the directory {self.fmt_backupdir} remove success")
         else:
-            backup_statistics.append({'本地留存': 'Yes'})
+            STATISTICS_INFO['本地留存'] = 'Yes'
             return False
 
-    def send_mail(self, file=False, data=None):
+    def send_mail(self, data):
         """ 
-        send mail notice 
-        fail: read and send self.xb_output_log
-        success: send backup_statistics
+        Send mail notice 
+        Read TemporaryFile content
         """
-        FMT_INFO = '{} --> {}\n'
-        if file is True:
-            content = ''.join(open(self.xb_output_log).readlines())
-        else:
-            content_list = []
-            for i in data:
-                for k in i:
-                    content_list.append(FMT_INFO.format(k, i[k]))
-            content = '\n'.join(content_list)
-        msg = MIMEText(content, _subtype='plain', _charset='utf8')
-        msg['Subject'] = '{} from {}'.format(self.title, hostname)
+        msg = MIMEText(data, _subtype='html', _charset='gbk')
+        msg['Subject'] = '{} from {}'.format(self.title, HOSTNAME)
         msg['From'] = self.mail_sender
         msg['To'] = ";".join(list(self.mail_receiver.split(',')))
         mail_receiver = list(self.mail_receiver.split(','))
@@ -293,7 +271,7 @@ class ToolsKit(General):
 
 class Prepare(General):
     """
-    # Generate command
+    Generate command
     """
 
     def __init__(self, file):
@@ -308,17 +286,17 @@ class Prepare(General):
         if hasattr(self, 'compress') and hasattr(self, 'compress_chunk_size') and hasattr(self, 'compress_threads'):
             compress_cmd = f"--compress={self.compress} --compress-chunk-size={self.compress_chunk_size} --compress-threads={self.compress_threads}"
             cmd_list.append(compress_cmd)
-            backup_statistics.append({'是否压缩': 'Yes'})
+            STATISTICS_INFO['是否压缩'] = 'Yes'
         else:
-            backup_statistics.append({'是否压缩': 'No'})
+            STATISTICS_INFO['是否压缩'] = 'No'
 
         if hasattr(self, 'encrypt') and hasattr(self, 'encrypt_key') and hasattr(self, 'encrypt_threads') and hasattr(
                 self, 'encrypt_chunk_size'):
             encrypt_cmd = f"--encrypt={self.encrypt} --encrypt-key={self.encrypt_key} --encrypt-threads={self.encrypt_threads} --encrypt-chunk-size={self.encrypt_chunk_size}"
             cmd_list.append(encrypt_cmd)
-            backup_statistics.append({'是否加密': 'Yes'})
+            STATISTICS_INFO['是否加密'] = 'Yes'
         else:
-            backup_statistics.append({'是否加密': 'No'})
+            STATISTICS_INFO['是否加密'] = 'No'
 
         if hasattr(self, 'xtra_options'):
             xtra_options = self.xtra_options
@@ -328,18 +306,14 @@ class Prepare(General):
 
         return ' '.join((xb_cmd, mysql_cmd, ' '.join(cmd_list)))
 
-    @property
     def generate_rsync_cmd(self):
         if hasattr(self, 'remote_host') and hasattr(self, 'remote_ssh_user') \
                 and hasattr(self, 'remote_ssh_pass') and hasattr(self, 'remote_dir'):
             rsync_cmd = f"rsync -avprP -e 'sshpass -p {self.remote_ssh_pass} " \
                         f"ssh -o StrictHostKeyChecking=no -l {self.remote_ssh_user}' " \
                         f"{self.fmt_backupdir} {self.remote_ssh_user}@{self.remote_host}:{self.remote_dir}"
-            backup_statistics.append({'远程主机': self.remote_host})
-            backup_statistics.append({'远程目录': '/'.join((self.remote_dir, os.path.basename(self.fmt_backupdir)))})
-            return rsync_cmd
-        else:
-            return False
+            remote_dir = '/'.join((self.remote_dir, os.path.basename(self.fmt_backupdir)))
+            return rsync_cmd, self.remote_host, remote_dir
 
 
 class RunCommand(object):
@@ -352,55 +326,65 @@ class RunCommand(object):
         return {'status': status, 'output': output}
 
 
-def xb_run():
+def main():
+    start_time = time.time()
+
     config_file = get_arguments()
 
     # check whether the config file is valid
-    check_file_content_valid(config_file)
-    logger.info(f"OK: the config file {config_file} check success")
+    check_config_valid(config_file)
 
     # check environment
-    CheckEnv(config_file).check_all_env()
-    logger.info(f'OK: the environment check success')
+    CheckEnvironment(config_file).check_file_exist()
 
     # instance Prepare and Toolskit
     prepare = Prepare(config_file)
-    tools = ToolsKit(config_file)
+    tools = ToolsUtils(config_file)
 
     xb_cmd = prepare.generate_xb_cmd
     logger.info(f'OK: generate xtrabackup command \n {xb_cmd}')
 
     # exec backup
     backup_result = RunCommand(xb_cmd).runner
-    logger.info(f'OK: perform backup process, please waiting...')
+    logger.info(f'OK: perform backup process, please waiting.')
 
-    # log output to file
-    tools.log_backup_output(backup_result['output'])
-    if backup_result['status'] == 0:
-        logger.info(f'OK: perform backup process success')
-        get_backup_file_size = tools.get_backup_file_size
-        get_partition_size = tools.get_partition_size
-        backup_statistics.append(get_backup_file_size)
-        backup_statistics.append(get_partition_size)
+    with TemporaryFile('w+t', encoding='gbk') as f:
+        if backup_result['status'] == 0:
+            logger.info(f'OK: xtrabackup backup success')
+            tools.get_backup_file_size()
+            tools.get_partition_size()
 
-        time.sleep(2)
+            # copy files to remote server
+            rsync_cmd = prepare.generate_rsync_cmd()
+            if rsync_cmd:
+                result = RunCommand(rsync_cmd[0]).runner
+                logger.info(f'OK: copying backup files to remote server, please waiting.')
+                if result['status'] == 0:
+                    tools.remove_backup_file()
+                    logger.info(f'OK: copy backup files to remote server success')
+                    STATISTICS_INFO['远程主机'] = rsync_cmd[1]
+                    STATISTICS_INFO['远程目录'] = rsync_cmd[2]
+                else:
+                    logger.error(f'FAIL: copy backup files to remote server fail')
+                    logger.error(f"ERROR: {result['output']}")
+                    STATISTICS_INFO['远程拷贝'] = '失败'
+                    STATISTICS_INFO['失败原因'] = result['output']
 
-        # copy files to remote server
-        rsync_cmd = prepare.generate_rsync_cmd
-        if rsync_cmd:
-            result = RunCommand(rsync_cmd).runner
-            logger.info(f'OK: copying backup files to remote server, waiting...')
-            if result['status'] == 0:
-                logger.info(f'OK: copy backup files to remote server success')
-                tools.remove_backup_file()
-            else:
-                logger.error(f'FAIL: copy backup files to remote server fail')
+            end_time = time.time()
+            STATISTICS_INFO['备份耗时'] = '{:0.2f}s'.format(end_time - start_time)
 
-        tools.send_mail(data=backup_statistics)
-    else:
-        logger.info(f'FAILED: perform backup process fail')
-        tools.send_mail(file=True)
+            result = render_to_template(html_template, STATISTICS_INFO)
+            f.write(result)
+        else:
+            logger.error(f"ERROR: {backup_result['output']}")
+            f.write(backup_result['output'])
+
+        f.seek(0)
+        TEXT_DATA = f.read()
+
+        tools.send_mail(TEXT_DATA)
 
 
 if __name__ == '__main__':
-    xb_run()
+    main()
+
