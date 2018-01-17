@@ -12,14 +12,14 @@
 3. pip install jinja2 MarkupSafe
 
 创建备份用户
-create user 'bkpuser'@'127.0.0.1' identified by 'Phqwrx4FuKb6';
-grant RELOAD, LOCK TABLES, PROCESS, REPLICATION CLIENT, SUPER, CREATE, INSERT, SELECT on *.* to 'bkpuser'@'127.0.0.1';
-flush privileges;
+create user 'bkpuser'@'127.0.0.1' identified by 'Phqwrx4FuKb6';<br>
+grant RELOAD, LOCK TABLES, PROCESS, REPLICATION CLIENT, SUPER, CREATE, INSERT, SELECT on *.* to 'bkpuser'@'127.0.0.1';<br>
+flush privileges;<br>
 
 随机生成24字节序列，然后使用base64编码的字符串
-xtrabackup加密密钥
-openssl rand -base64 24
---> /Ypbi69zhme8KifZc6FEFHb+XnhtKA8J
+xtrabackup加密密钥<br>
+openssl rand -base64 24<br>
+--> /Ypbi69zhme8KifZc6FEFHb+XnhtKA8J<br>
 
 使用方法：
 1. 编辑配置文件
