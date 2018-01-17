@@ -1,6 +1,5 @@
 [mysql]
 # mysql backup user
-mysqladmin = /usr/local/mysql/bin/mysqladmin
 user = bkpuser
 password = 123.com
 host = 127.0.0.1
