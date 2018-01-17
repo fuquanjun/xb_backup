@@ -1,0 +1,61 @@
+<html lang="en">
+<head>
+    <meta charset="gbk">
+    <style>
+        body {
+            font-size: 14px;
+            line-height: 1.42857143;
+            color: #333;
+            background-color: #fff;
+        }
+
+        .row {
+            margin-right: -15px;
+            margin-left: -15px;
+        }
+
+        .col-sm-10 {
+            width: 85%;
+        }
+
+        .col-sm-2 {
+            width: 15%;
+        }
+
+        .table {
+            width: 85%;
+            max-width: 85%;
+            margin-bottom: 1rem;
+            background-color: transparent;
+            border-collapse: collapse;
+        }
+
+        .table td, .table th {
+            padding: .65rem;
+            vertical-align: top;
+            border-top: 1px solid #dee2e6;
+            word-wrap: break-word;
+            word-break: break-all;
+        }
+    </style>
+</head>
+
+<body>
+<div>
+    {% if data %}
+    <table class="table">
+        <tbody>
+        {% for key in data %}
+        <tr class="row">
+            <td class="col-sm-2">{{ key }}</td>
+            <td class="col-sm-10">{{ data[key] }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% elif err_msg %}
+        <p>err_msg</p>
+    {% endif %}
+</div>
+</body>
+</html>
