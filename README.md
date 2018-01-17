@@ -1,15 +1,25 @@
-# xb_backup
-xtrabackup simple scripts
-支持：
-1. 记录备份信息
-2. 支持备份后，发送邮件
-3. 支持备份完成后，自动拷贝到远程主机目录
+# 使用python简单封装的脚本，实现自动化备份、通知
 
+支持：
+1. 邮件发送备份信息(html格式)
+2. 支持备份信息的统计
+3. 支持自动拷贝到远程主机目录
 
 环境部署：
-1. 安装python3.5+
-2. 安装mysql-connector-python-2.1.6 
-3. 安装xtrabackup最新版
+1. 安装python3.6
+2. rpm -ivh percona-xtrabackup-24-2.4.9-1.el7.x86_64.rpm
+3. yum -y install sshpass
+3. pip install jinja2 MarkupSafe
+
+创建备份用户
+create user 'bkpuser'@'127.0.0.1' identified by 'Phqwrx4FuKb6';
+grant RELOAD, LOCK TABLES, PROCESS, REPLICATION CLIENT, SUPER, CREATE, INSERT, SELECT on *.* to 'bkpuser'@'127.0.0.1';
+flush privileges;
+
+随机生成24字节序列，然后使用base64编码的字符串
+xtrabackup加密密钥
+openssl rand -base64 24
+--> /Ypbi69zhme8KifZc6FEFHb+XnhtKA8J
 
 使用方法：
 1. 编辑配置文件
@@ -18,28 +28,19 @@ vim /etc/xb_backup.cnf
 2. 命令
 python3.6 xb_backup.py -f/etc/xb_backup.cnf
 
-
-最后邮件收到的内容：
+邮件格式：
+html表格格式
 ```
-备份主机 --> Cent7-mysql-21-110
-
-备份目录 --> /app/backup/2018-01-12_05:00:01
-
-备份工具 --> /usr/local/percona-xtrabackup/bin/xtrabackup
-
-是否压缩 --> Yes
-
-是否加密 --> Yes
-
-文件大小 --> 10.92GB
-
-可用空间 --> 187.16GB
-
-总空间 --> 198.90GB
-
-远程主机 --> 10.73.22.17
-
-远程目录 --> /backup/xtrabackup/user_center/2018-01-12_05:00:01
-
-本地留存 --> No
+备份主机	dj-mysql-244-33
+备份目录	/data/backup/xtrabackup/2018-01-17_13:47:58
+备份工具	/usr/bin/xtrabackup
+是否压缩	Yes
+是否加密	Yes
+备份大小	0.44GB
+可用空间	88.04GB
+总空间	99.95GB
+本地留存	No
+远程主机	10.74.243.50
+远程目录	/data/backup/2018-01-17_13:47:58
+备份耗时	22.53s
 ```
